@@ -13,10 +13,8 @@ impl<T: Sync> Lazy<T> {
     pub fn get<F>(&'static self, builder: F) -> &'static T
         where F: FnOnce() -> T
     {
-        let &Lazy(ref v, ref o) = self;
-
-        o.call_once(move || unsafe {
-            *v.get() = builder()
+        self.1.call_once(move || unsafe {
+            *self.0.get() = builder()
         });
         self.force_get()
     }
