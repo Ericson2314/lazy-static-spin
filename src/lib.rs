@@ -81,12 +81,11 @@ macro_rules! lazy_static {
         lazy_static!(PUB static ref $N : $T = $e; $($t)*);
     };
     ($VIS:ident static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        // TODO use `*const T` instead of usize
-        lazy_static_unboxed!($VIS static $N : usize = {
-            0;
-            unsafe {
-                ::std::mem::transmute::<Box<$T>, usize>(box() ($e))
-            }
+        lazy_static_unboxed!($VIS static $N : ::std::ptr::Unique<$T> = {
+            ::std::ptr::Unique(0 as *mut $T);
+            ::std::ptr::Unique(unsafe {
+                ::std::mem::transmute::<Box<$T>, *mut $T>(box() ($e))
+            })
         };);
         impl ::std::ops::Deref for $N {
             type Target = $T;
@@ -94,7 +93,7 @@ macro_rules! lazy_static {
                 use std::mem::transmute;
                 unsafe {
                     let slf: &'static Self = transmute(self);
-                    transmute::<usize, &'a $T>(*slf.get_or_init())
+                    transmute::<*mut $T, &'a $T>(slf.get_or_init().0)
                 }
             }
         }
