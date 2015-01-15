@@ -68,7 +68,9 @@ define uninitialized `static mut` values.
 
 */
 
-#![crate_type = "dylib"]
+pub use self::lazy::Lazy;
+
+mod lazy;
 
 #[macro_export]
 macro_rules! lazy_static {
@@ -79,43 +81,69 @@ macro_rules! lazy_static {
         lazy_static!(PUB static ref $N : $T = $e; $($t)*);
     };
     ($VIS:ident static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        lazy_static!(MAKE TY $VIS $N);
+        // TODO use `*const T` instead of usize
+        lazy_static_unboxed!($VIS static $N : usize = {
+            0;
+            unsafe {
+                ::std::mem::transmute::<Box<$T>, usize>(box() ($e))
+            }
+        };);
         impl ::std::ops::Deref for $N {
             type Target = $T;
             fn deref<'a>(&'a self) -> &'a $T {
-                use std::sync::{Once, ONCE_INIT};
                 use std::mem::transmute;
-
-                #[inline(always)]
-                fn require_sync<T: Sync>(_: &T) { }
-
                 unsafe {
-                    static mut __static: *const $T = 0 as *const $T;
-                    static mut __ONCE: Once = ONCE_INIT;
-                    __ONCE.call_once(|| {
-                        __static = transmute::<Box<$T>, *const $T>(box() ($e));
-                    });
-                    let static_ref = &*__static;
-                    require_sync(static_ref);
-                    static_ref
+                    let slf: &'static Self = transmute(self);
+                    transmute::<usize, &'a $T>(*slf.get_or_init())
                 }
             }
         }
+
         lazy_static!($($t)*);
     };
-    (MAKE TY PUB $N:ident) => {
-        #[allow(missing_copy_implementations)]
-        #[allow(non_camel_case_types)]
-        #[allow(dead_code)]
-        pub struct $N {__private_field: ()}
-        pub static $N: $N = $N {__private_field: ()};
-    };
-    (MAKE TY PRIV $N:ident) => {
-        #[allow(missing_copy_implementations)]
-        #[allow(non_camel_case_types)]
-        #[allow(dead_code)]
-        struct $N {__private_field: ()}
-        static $N: $N = $N {__private_field: ()};
-    };
     () => ()
+}
+
+
+#[macro_export]
+macro_rules! lazy_static_unboxed {
+    (static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
+        lazy_static_unboxed!(PRIV static $N : $T = $e; $($t)*);
+    };
+    (pub static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
+        lazy_static_unboxed!(PUB static $N : $T = $e; $($t)*);
+    };
+    ($VIS:ident static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
+        lazy_static_unboxed!(MK $VIS struct $N<$T>);
+        lazy_static_unboxed!(MK $VIS static $N : $N = $N {
+            inner: ::lazy_static::Lazy(
+                ::std::cell::UnsafeCell {
+                    value: $u
+                },
+                ::std::sync::ONCE_INIT)
+        });
+        impl $N {
+            fn get_or_init<'a>(&'static self) -> &'static $T {
+                fn builder() -> $T { $e }
+                self.inner.get(builder)
+            }
+        }
+
+        lazy_static_unboxed!($($t)*);
+    };
+    (MK PUB struct $N:ident<$T:ty>) => {
+        #[allow(missing_copy_implementations)]
+        #[allow(non_camel_case_types)]
+        #[allow(dead_code)]
+        pub struct $N { inner: ::lazy_static::Lazy<$T> }
+    };
+    (MK PRIV struct $N:ident<$T:ty>) => {
+        #[allow(missing_copy_implementations)]
+        #[allow(non_camel_case_types)]
+        #[allow(dead_code)]
+        struct $N { inner: ::lazy_static::Lazy<$T> }
+    };
+    (MK PUB  static $i:ident : $t:ty = $e:expr) => {pub static $i : $t = $e;};
+    (MK PRIV static $i:ident : $t:ty = $e:expr) =>     {static $i : $t = $e;};
+    () => ();
 }
