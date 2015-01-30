@@ -11,6 +11,10 @@ documentation = "http://rust-lang-nursery.github.io/lazy-static.rs/lazy_static/i
 repository = "https://github.com/rust-lang-nursery/lazy-static.rs"
 keywords = ["macro", "lazy", "static"]
 
+[dependencies.core]
+git = "https://github.com/RustOS-Fork-Holding-Ground/rust.git"
+branch = "rustos"
+
 [dependencies.spin]
 version = "0.4"
 optional = true
