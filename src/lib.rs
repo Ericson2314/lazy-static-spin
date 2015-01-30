@@ -33,6 +33,8 @@ trait.
 Using the macro:
 
 ```rust
+extern crate core;
+extern crate alloc;
 #[macro_use]
 extern crate lazy_static_spin;
 
@@ -59,6 +61,65 @@ fn main() {
 }
 ```
 
+In a freestanding context with allocation:
+
+```rust
+#![no_std]
+#![feature(core)]
+#![feature(alloc)]
+#![feature(collections)]
+
+
+extern crate core;
+extern crate alloc;
+extern crate collections;
+#[macro_use]
+extern crate std;
+#[macro_use]
+extern crate lazy_static_spin;
+
+use collections::Vec;
+
+lazy_static_spin! {
+    static ref NUMBER: u32 = 5;
+    static ref ARRAY: Vec<u32> = {
+        let mut v = Vec::new();
+        v.push(*NUMBER);
+        v.push(*NUMBER);
+        v
+    };
+}
+
+fn times_two(n: u32) -> u32 { n * 2 }
+
+fn main() {
+    assert_eq!(*ARRAY, vec!(5, 5));
+}
+```
+
+In a freestanding context Without allocation:
+
+```rust
+#![no_std]
+
+extern crate core;
+#[macro_use]
+extern crate std;
+#[macro_use]
+extern crate lazy_static_spin;
+
+lazy_static_unboxed_spin! {
+    static COUNT: u32 = {0; 5};
+    static NUMBER: u32 = {0; times_two(*COUNT.get_or_init() as u32)};
+}
+
+fn times_two(n: u32) -> u32 { n * 2 }
+
+fn main() {
+    assert_eq!(*NUMBER.get_or_init(), 10);
+}
+```
+
 # Implementation details
 
 The `Deref` implementation uses a hidden `static mut` that is guarded by a atomic check
@@ -67,6 +128,15 @@ put in a heap allocated box, due to the Rust language currently not providing an
 define uninitialized `static mut` values.
 
 */
+
+#![no_std]
+#![feature(core)]
+
+extern crate core;
+
+#[cfg(test)]
+extern crate std;
+
 
 pub use self::lazy::Lazy;
 
@@ -81,19 +151,17 @@ macro_rules! lazy_static_spin {
         lazy_static_spin!(PUB static ref $N : $T = $e; $($t)*);
     };
     ($VIS:ident static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        lazy_static_unboxed_spin!($VIS static $N : ::std::ptr::Unique<$T> = {
-            ::std::ptr::Unique(0 as *mut $T);
-            ::std::ptr::Unique(unsafe {
-                ::std::mem::transmute::<Box<$T>, *mut $T>(box() ($e))
+        lazy_static_unboxed_spin!($VIS static $N : ::core::ptr::Unique<$T> = {
+            ::core::ptr::Unique(0 as *mut $T);
+            ::core::ptr::Unique(unsafe {
+                ::core::mem::transmute::<::alloc::boxed::Box<$T>, *mut $T>(box() ($e))
             })
         };);
-        impl ::std::ops::Deref for $N {
+        impl ::core::ops::Deref for $N {
             type Target = $T;
             fn deref<'a>(&'a self) -> &'a $T {
-                use std::mem::transmute;
                 unsafe {
-                    let slf: &'static Self = transmute(self);
-                    transmute::<*mut $T, &'a $T>(slf.get_or_init().0)
+                    ::core::mem::transmute::<*mut $T, &'a $T>(self.get_or_init().0)
                 }
             }
         }
@@ -107,22 +175,22 @@ macro_rules! lazy_static_spin {
 #[macro_export]
 macro_rules! lazy_static_unboxed_spin {
     (static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
-        lazy_static_unboxed_spin!(PRIV static $N : $T = $e; $($t)*);
+        lazy_static_unboxed_spin!(PRIV static $N : $T = {$u; $e}; $($t)*);
     };
     (pub static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
-        lazy_static_unboxed_spin!(PUB static $N : $T = $e; $($t)*);
+        lazy_static_unboxed_spin!(PUB static $N : $T = {$u; $e}; $($t)*);
     };
     ($VIS:ident static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
         lazy_static_unboxed_spin!(MK $VIS struct $N<$T>);
         lazy_static_unboxed_spin!(MK $VIS static $N : $N = $N {
             inner: ::lazy_static_spin::Lazy(
-                ::std::cell::UnsafeCell {
+                ::core::cell::UnsafeCell {
                     value: $u
                 },
-                ::std::sync::ONCE_INIT)
+                ::core::atomic::ATOMIC_UINT_INIT)
         });
         impl $N {
-            fn get_or_init<'a>(&'static self) -> &'static $T {
+            fn get_or_init<'a>(&'a self) -> &'a $T {
                 fn builder() -> $T { $e }
                 self.inner.get(builder)
             }
