@@ -9,7 +9,7 @@ as well as anything that requires function calls to be computed.
 # Syntax
 
 ```ignore
-lazy_static! {
+lazy_static_spin! {
     [pub] static ref NAME_1: TYPE_1 = EXPR_1;
     [pub] static ref NAME_2: TYPE_2 = EXPR_2;
     ...
@@ -34,11 +34,11 @@ Using the macro:
 
 ```rust
 #[macro_use]
-extern crate lazy_static;
+extern crate lazy_static_spin;
 
 use std::collections::HashMap;
 
-lazy_static! {
+lazy_static_spin! {
     static ref HASHMAP: HashMap<u32, &'static str> = {
         let mut m = HashMap::new();
         m.insert(0, "foo");
@@ -73,15 +73,15 @@ pub use self::lazy::Lazy;
 mod lazy;
 
 #[macro_export]
-macro_rules! lazy_static {
+macro_rules! lazy_static_spin {
     (static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        lazy_static!(PRIV static ref $N : $T = $e; $($t)*);
+        lazy_static_spin!(PRIV static ref $N : $T = $e; $($t)*);
     };
     (pub static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        lazy_static!(PUB static ref $N : $T = $e; $($t)*);
+        lazy_static_spin!(PUB static ref $N : $T = $e; $($t)*);
     };
     ($VIS:ident static ref $N:ident : $T:ty = $e:expr; $($t:tt)*) => {
-        lazy_static_unboxed!($VIS static $N : ::std::ptr::Unique<$T> = {
+        lazy_static_unboxed_spin!($VIS static $N : ::std::ptr::Unique<$T> = {
             ::std::ptr::Unique(0 as *mut $T);
             ::std::ptr::Unique(unsafe {
                 ::std::mem::transmute::<Box<$T>, *mut $T>(box() ($e))
@@ -98,24 +98,24 @@ macro_rules! lazy_static {
             }
         }
 
-        lazy_static!($($t)*);
+        lazy_static_spin!($($t)*);
     };
     () => ()
 }
 
 
 #[macro_export]
-macro_rules! lazy_static_unboxed {
+macro_rules! lazy_static_unboxed_spin {
     (static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
-        lazy_static_unboxed!(PRIV static $N : $T = $e; $($t)*);
+        lazy_static_unboxed_spin!(PRIV static $N : $T = $e; $($t)*);
     };
     (pub static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
-        lazy_static_unboxed!(PUB static $N : $T = $e; $($t)*);
+        lazy_static_unboxed_spin!(PUB static $N : $T = $e; $($t)*);
     };
     ($VIS:ident static $N:ident : $T:ty = { $u:expr ; $e:expr}; $($t:tt)*) => {
-        lazy_static_unboxed!(MK $VIS struct $N<$T>);
-        lazy_static_unboxed!(MK $VIS static $N : $N = $N {
-            inner: ::lazy_static::Lazy(
+        lazy_static_unboxed_spin!(MK $VIS struct $N<$T>);
+        lazy_static_unboxed_spin!(MK $VIS static $N : $N = $N {
+            inner: ::lazy_static_spin::Lazy(
                 ::std::cell::UnsafeCell {
                     value: $u
                 },
@@ -128,19 +128,19 @@ macro_rules! lazy_static_unboxed {
             }
         }
 
-        lazy_static_unboxed!($($t)*);
+        lazy_static_unboxed_spin!($($t)*);
     };
     (MK PUB struct $N:ident<$T:ty>) => {
         #[allow(missing_copy_implementations)]
         #[allow(non_camel_case_types)]
         #[allow(dead_code)]
-        pub struct $N { inner: ::lazy_static::Lazy<$T> }
+        pub struct $N { inner: ::lazy_static_spin::Lazy<$T> }
     };
     (MK PRIV struct $N:ident<$T:ty>) => {
         #[allow(missing_copy_implementations)]
         #[allow(non_camel_case_types)]
         #[allow(dead_code)]
-        struct $N { inner: ::lazy_static::Lazy<$T> }
+        struct $N { inner: ::lazy_static_spin::Lazy<$T> }
     };
     (MK PUB  static $i:ident : $t:ty = $e:expr) => {pub static $i : $t = $e;};
     (MK PRIV static $i:ident : $t:ty = $e:expr) =>     {static $i : $t = $e;};

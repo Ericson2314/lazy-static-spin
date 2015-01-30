@@ -13,7 +13,7 @@ as well as anything that requires function calls to be computed.
 # Syntax
 
 ```rust
-lazy_static! {
+lazy_static_spin! {
     [pub] static ref NAME_1: TYPE_1 = EXPR_1;
     [pub] static ref NAME_2: TYPE_2 = EXPR_2;
     ...
@@ -55,11 +55,11 @@ Using the macro:
 
 ```rust
 #[macro_use]
-extern crate lazy_static;
+extern crate lazy_static_spin;
 
 use std::collections::HashMap;
 
-lazy_static! {
+lazy_static_spin! {
     static ref HASHMAP: HashMap<u32, &'static str> = {
         let mut m = HashMap::new();
         m.insert(0, "foo");

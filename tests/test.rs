@@ -1,10 +1,10 @@
 #![allow(unstable)]
 
 #[macro_use]
-extern crate lazy_static;
+extern crate lazy_static_spin;
 use std::collections::HashMap;
 
-lazy_static! {
+lazy_static_spin! {
     static ref NUMBER: u32 = times_two(3);
     static ref ARRAY_BOXES: [Box<u32>; 3] = [Box::new(1), Box::new(2), Box::new(3)];
     static ref STRING: String = "hello".to_string();
@@ -40,7 +40,7 @@ fn test_repeat() {
 }
 
 mod visibility {
-    lazy_static! {
+    lazy_static_spin! {
         pub static ref FOO: Box<u32> = Box::new(0);
     }
 }
@@ -51,6 +51,6 @@ fn test_visibility() {
 }
 
 // This should not cause a warning about a missing Copy implementation
-lazy_static! {
+lazy_static_spin! {
     pub static ref VAR: i32 = { 0 };
 }
