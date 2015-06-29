@@ -1,6 +1,32 @@
+#![feature(const_fn)]
+
 #[macro_use]
 extern crate lazy_static;
 use std::collections::HashMap;
+use std::cell::UnsafeCell;
+use lazy_static::Lazy;
+
+#[test]
+fn lazy_alone() {
+    static X: Lazy<u32> = Lazy::new(0);
+    X.get(|| 1);
+    assert_eq!(*X.get(|| 2), 1);
+}
+
+lazy_static_unboxed! {
+    static NAT: u32 = { 0; times_two(3) };
+    static ARRS: [Option<Box<u32>>; 3] = {
+        [None, None, None];
+        [Some(Box::new(1)), Some(Box::new(2)), Some(Box::new(3))]
+    };
+}
+
+#[test]
+fn unboxed() {
+    assert_eq!(*NAT.get_or_init(), 6);
+    assert_eq!(&*ARRS.get_or_init(),
+               &[Some(Box::new(1)), Some(Box::new(2)), Some(Box::new(3))]);
+}
 
 lazy_static! {
     static ref NUMBER: u32 = times_two(3);
@@ -67,7 +93,7 @@ static DATA: X = X;
 static ONCE: X = X;
 fn require_sync() -> X { X }
 fn transmute() -> X { X }
-fn __static_ref_initialize() -> X { X }
+fn __builder() -> X { X }
 fn test(_: Vec<X>) -> X { X }
 
 // All these names should not be shadowed
@@ -76,7 +102,7 @@ lazy_static! {
         test(vec![X, Once(X).0, ONCE_INIT.0, DATA, ONCE,
                   require_sync(), transmute(),
                   // Except this, which will sadly be shadowed by internals:
-                  // __static_ref_initialize()
+                  // __builder()
                   ])
     };
 }
